@@ -86,7 +86,7 @@ spw='14'
 mode='clip'
 clipminmax=[0,30]
 action='apply'
-reason='Clip Target'
+cmdreason='Clip Target'
 flagbackup=False
 flagdata()
 
@@ -141,7 +141,7 @@ timedevscale=1.0
 freqdevscale=1.0
 action='apply'
 display=''
-reason='RFLAG Target'
+cmdreason='RFLAG Target'
 flagbackup=False
 savepars=True
 flagdata()

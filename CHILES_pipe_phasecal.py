@@ -446,7 +446,7 @@ spw='14'
 mode='clip'
 clipminmax=[0,30]
 action='apply'
-reason='Clip Phase Cal'
+cmdreason='Clip Phase Cal'
 flagbackup=False
 flagdata()
 
@@ -501,7 +501,7 @@ timedevscale=1.0
 freqdevscale=1.0
 action='apply'
 display=''
-reason='RFLAG Phase Cal'
+cmdreason='RFLAG Phase Cal'
 flagbackup=False
 savepars=True
 flagdata()

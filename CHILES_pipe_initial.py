@@ -97,13 +97,13 @@ try:
     pipepath
 except:
     #pipepath='/lustre/aoc/cluster/pipeline/script/prod/'
-    #pipepath='/users/djpisano/cluster_pipeline/'
-    pipepath='/data/dpisano/CHILES/cluster_pipeline/'
+    pipepath='/users/djpisano/cluster_pipeline/'
+    #pipepath='/data/dpisano/CHILES/cluster_pipeline/'
     #pipepath='/lustre/aoc/projects/chiles/chiles_pipeline/'
 
 # Define location of output files from NRAO continuum pipeline
-#nrao_weblog_path='/scratch/djpisano/weblogs/'
-nrao_weblog_path='/data/dpisano/CHILES/weblogs/'
+nrao_weblog_path='/scratch/djpisano/weblogs/'
+#nrao_weblog_path='/data/dpisano/CHILES/weblogs/'
 #nrao_weblog_path='/lustre/aoc/projects/chiles/weblogs/'
 
 # To find the path to the weblog index.html file for the NRAO pipeline run:
@@ -678,7 +678,7 @@ try:
         action='apply'
         flagbackup=False
         savepars=False
-        reason='Bad Antenna'
+        cmdreason='Bad Antenna'
         flagdata()
         clearstat()
         logprint ("Bad antenna Flagging completed", logfileout='logs/initial.log')
@@ -694,7 +694,7 @@ try:
     mode ='manual'
     spw =contspw
     action ='apply'
-    reason='Continuum SPWs'
+    cmdreason='Continuum SPWs'
     flagbackup=False
     flagdata()
     
@@ -715,7 +715,7 @@ try:
     os.system(syscommand)
         
 # Zero flagging done on import in version 0.10 and following, but in case it wasn't.
-# First do zero flagging (reason='CLIP_ZERO_ALL')
+# First do zero flagging (cmdreason='CLIP_ZERO_ALL')
 # 8/29/18 DJP:  This will need to be done again when importasdm is used.
     default('flagdata')
     vis=ms_active
@@ -723,7 +723,7 @@ try:
     clipzeros=True
     correlation='ABS_ALL'
     action='apply'
-    reason='CLIP_ZERO_ALL'
+    cmdreason='CLIP_ZERO_ALL'
     flagbackup=False
     savepars=False
     outfile=outputflagfile
@@ -775,7 +775,7 @@ try:
     action='apply'
     flagbackup=False
     savepars=True
-    reason=string.join(cmdreason_list, ',')
+    cmdreason=string.join(cmdreason_list, ',')
     flagdata()
     clearstat()
     
@@ -939,19 +939,25 @@ try:
     spw=flag_spw
     mode='manual'
     action='apply'
-    reason='RFI Mask'
+    cmdreason='RFI Mask'
     flagbackup=False
     flagdata()
 
 ######################################################################
-    weblog_file=find('index.html',nrao_weblog_path+SDM_name)
 
-    if weblog_file==None:
-        tu=qa.quantity(startdate,'d')
-        obsdate=qa.time(tu,form=['fits','no_time'])
-        dirname='13B-266'+str(obsdate).replace('-','_')+'*/products/pipeline*/html/'
-        weblog_file=find('index.html',glob.glob(nrao_weblog_path+dirname)[0])
+# Check if nrao_weblog_path is set properly.  If not 
+    if os.path.exists(nrao_weblog_path):
+        weblog_file=find('index.html',nrao_weblog_path+SDM_name)
 
+        if weblog_file==None:
+            tu=qa.quantity(startdate,'d')
+            obsdate=qa.time(tu,form=['fits','no_time'])
+            dirname='13B-266'+str(obsdate).replace('-','_')+'*/products/pipeline*/html/'
+            weblog_file=find('index.html',glob.glob(nrao_weblog_path+dirname)[0])
+
+    else:
+        weblog_file=None
+        
 
 # Assemble graphical output for this stage.
 # Need to include:  links to NRAO continuum pipeline, prtan output, logs

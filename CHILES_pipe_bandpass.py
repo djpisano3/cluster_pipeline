@@ -338,7 +338,7 @@ mode='clip'
 clipminmax=[0,50]
 action='apply'
 flagbackup=False
-reason='Clip Flux Cal'
+cmdreason='Clip Flux Cal'
 flagdata()
 
 #This calculates timedev and freqdev for spw14
@@ -394,7 +394,7 @@ freqdevscale=1.0
 action='apply'
 display=''
 flagbackup=False
-reason='RFLAG Flux Cal'
+cmdreason='RFLAG Flux Cal'
 savepars=True
 flagdata()
 
