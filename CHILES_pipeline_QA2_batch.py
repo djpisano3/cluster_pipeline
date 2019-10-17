@@ -13,7 +13,7 @@
 # separately on the WVU cluster.  
 #
 # This script should be run from the command line in the following way:
-# casa --nogui --nologger --agg -c "var=[sessionnumber]; execfile('path/CHILES_pipeline_batch.py')"
+# mpicasa -n 6 /usr/local/casa/bin/casa --nogui --nologger --agg -c "var=[sessionnumber]; execfile('path/CHILES_pipeline_batch.py')"
 #
 # 8/29/18 DJP
 # 12/19/18 DJP
@@ -86,6 +86,7 @@ try:
 # If set, then execute script
     execfile(pipepath+'CHILES_pipe_restore.py')
     execfile(pipepath+'CHILES_pipe_QA2.py')
+    #execfile(pipepath+'CHILES_pipe_split.py')
     os.chdir(datapath)
 except IndexError:
     print ('***ERROR:  File selected is missing.***')

@@ -3,6 +3,7 @@
 # pipeline.
 # 9/21/16 DJP
 # 1/10/17 DJP: Include html, logs, and plots in FINAL directory
+# 10/16/19 DJP:  Included code to convert html to PDF and copy these files to FINAL directory.  WARNING: THIS ONLY WORKS on Spruce KNOB!!!
 
 logprint ("Starting CHILES_pipe_split.py", logfileout='logs/split.log')
 time_list=runtiming('split', 'start')
@@ -107,6 +108,7 @@ for s in range(15):
 fig=pylab.figure()
 pylab.plot(freq,flag_frac,'k-')
 pylab.xlim(940.,1445.)
+pylab.ylim(0.,1.)
 pylab.xlabel('Frequency [MHz]')
 pylab.ylabel('Fraction of data flagged')
 pylab.savefig("finaltarget_flag.png")
@@ -215,9 +217,18 @@ wlog.write('</body>\n')
 wlog.write('</html>\n')
 wlog.close()
 
+
+logprint("Convert html files to PDF files",logfileout='logs/split.log')
+# Convert html files into PDF files using wkhtmltopdf (on Spruce Knob only!)
+for i in ('initial','bandpass','phasecal','target','QA','split'):
+    cmd_string='singularity exec /shared/software/containers/wkhtmltox.simg wkhtmltopdf --zoom 0.6 --page-size letter '+i+'.html '+i+'.pdf'
+#    cmd_string='wkhtmltopdf --zoom 0.6 --page-size letter '+i+'.html '+i+'.pdf'  # If not on Spruce Knob, assuming wkhtmltopdf is in path
+    os.system(cmd_string)
+
+
 # Copy html files and plots to FINAL directory
-#os.system("cp -r *html FINAL/.")
-#os.system("cp -r plots FINAL/.")
+os.system("cp -r *.pdf FINAL/.")
+os.system("cp -r plots FINAL/.")
 
 logprint ("Finished CHILES_pipe_split.py", logfileout='logs/split.log')
 time_list=runtiming('split', 'end')
@@ -225,8 +236,8 @@ time_list=runtiming('split', 'end')
 pipeline_save()
 
 # Save variable values
-#os.system("cp -r pipeline_shelf.restore FINAL/.")
+os.system("cp -r pipeline_shelf.restore FINAL/.")
 
 # Copy logs to FINAL directory (needs to be after final "save" to preserve all information
-#os.system("cp *.log logs")
-#os.system("cp -r logs FINAL/.")
+os.system("cp *.log logs")
+os.system("cp -r logs FINAL/.")

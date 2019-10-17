@@ -1,4 +1,4 @@
-# CHILES_pipeline_calibrate_batch
+# CHILES_pipeline_QA_batch
 #
 # This script is designed to get the parameters needed to process a given dataset
 # and then run the CHILES pipeline modules.  It will do this by taking a number 
@@ -9,14 +9,15 @@
 # containing the SDM file of interest and then return to the parent directory
 # on completion.
 #
-# This script is designed to allow a batch run of the pipeline on the WVU cluster,
-# but can be run on any system. This module is used instead of CHILES_pipeline.py
+# This script is designed to run the QA module after the pipeline has been run
+# separately on the WVU cluster.  
 #
 # This script should be run from the command line in the following way:
 # casa --nogui --nologger --agg -c "var=[sessionnumber]; execfile('path/CHILES_pipeline_batch.py')"
 #
 # 8/29/18 DJP
-# 01/20/19 DJP:  Just runs calibration and split modules
+# 12/19/18 DJP
+# 01/27/19 DJP:  Copied into QA1 and QA2
 
 
 import os
@@ -26,7 +27,6 @@ from numpy import loadtxt
 # Set pipeline path
 #pipepath='/data/dpisano/CHILES/chiles_pipeline/'
 #pipepath='/lustre/aoc/projects/chiles/chiles_pipeline/'
-#pipepath='/users/djpisano/chiles_pipeline/'
 pipepath='/users/djpisano/cluster_pipeline/'
 
 #Determine which dataset to process
@@ -85,14 +85,11 @@ try:
         print('***ERROR: Only one copy of SDM file should be in data directories.***')
 # If set, then execute script
     execfile(pipepath+'CHILES_pipe_restore.py')
-    execfile(pipepath+'CHILES_pipe_bandpass.py')
-    execfile(pipepath+'CHILES_pipe_phasecal.py')
-    execfile(pipepath+'CHILES_pipe_target.py')
-    #execfile(pipepath+'CHILES_pipe_split.py')
+    execfile(pipepath+'CHILES_pipe_split.py')
     os.chdir(datapath)
 except IndexError:
     print ('***ERROR:  File selected is missing.***')
     print ('***ERROR:  Or parameter not set properly.***')
 
 
-print('***Pipeline Run completed***')
+print('***Pipeline QA completed***')

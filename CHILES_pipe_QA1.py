@@ -19,6 +19,7 @@
 # 01/25/19 DJP:  Removed all phasecal cube imaging/measurements
 # 01/27/19 DJP:  Had trouble with plotms and imview running under mpicasa.  Trying with casa and splitting into QA1, QA2
 # 08/04/19 DJP:  Fixed html code (for converting to PDF).  Left out use of /dev/shm 
+# 10/16/19 DJP:  Updated ylim for flagging plots (always 0-1), added spw labels to BP and target plots, removed imview
 
   
 
@@ -212,6 +213,7 @@ for ii in seq:
 # Make plots showing effect of masking RFI on phase calibrator
 # The following methold plots the flagged and unflagged data for the shortest 
 # baselines used in the calibration.
+
 for ii in seq:
     print('Plot Amplitude vs. Frequency for Spw '+str(ii))
     phasefile=phasems+'_spw'+str(ii)+'.ms'
@@ -283,6 +285,7 @@ for s in seq:
 fig=pylab.figure()
 pylab.plot(freq,flag_frac,'k-')
 pylab.xlim(940.,1445.)
+pylab.ylim(0.,1.)
 pylab.xlabel('Frequency [MHz]')
 pylab.ylabel('Fraction of data flagged')
 pylab.savefig("bp_flag.png")
@@ -361,7 +364,7 @@ for ii in seq:
         plt.plot(freq,a1[:,ant])
     plt.xlabel('Frequency [MHz]')
     plt.ylabel('Gain')
-    plt.title('BP Gain Solutions')
+    plt.title('BP Gain Solutions, Spw='+str(ii))
     plt.savefig('bpamp_Spw'+str(ii)+'.png')
     plt.close()
     # Phases
@@ -370,7 +373,7 @@ for ii in seq:
         plt.plot(freq,p1[:,ant])
     plt.xlabel('Frequency [MHz]')
     plt.ylabel('Phase')
-    plt.title('BP Phase Solutions')
+    plt.title('BP Phase Solutions, Spw='+str(ii))
     plt.savefig('bpphase_Spw'+str(ii)+'.png')
     plt.close()
     
@@ -619,7 +622,8 @@ wlog.write('<li> Bandpass solutions (amplitude and phase) for reference antenna:
 wlog.write('<li> Color coded by antenna, both polarizations shown \n')
 wlog.write('<table> \n')
 for ii in seq:
-    wlog.write('<tr><td><img src="plots/bpamp_Spw'+str(ii)+'.png"></td>\n')
+    wlog.write('<tr><td> Spw = '+str(ii)+'\n')
+    wlog.write('<img src="plots/bpamp_Spw'+str(ii)+'.png"></td>\n')
     wlog.write('<td><img src="plots/bpphase_Spw'+str(ii)+'.png"></td></tr>\n')
 wlog.write('</table> \n')
 wlog.write('<br>')
@@ -719,6 +723,7 @@ for s in seq:
 fig=pylab.figure()
 pylab.plot(freq,flag_frac,'k-')
 pylab.xlim(940.,1445.)
+pylab.ylim(0.,1.)
 pylab.xlabel('Frequency [MHz]')
 pylab.ylabel('Fraction of data flagged')
 pylab.savefig("phase_flag.png")
@@ -1037,6 +1042,7 @@ for s in seq:
 fig=pylab.figure()
 pylab.plot(freq,flag_frac,'k-')
 pylab.xlim(940.,1445.)
+pylab.ylim(0.,1.)
 pylab.xlabel('Frequency [MHz]')
 pylab.ylabel('Fraction of data flagged')
 pylab.savefig("target_flag.png")
@@ -1055,7 +1061,7 @@ for ii in seq:
     tt = target_plots_v2(targetfile,ii)
 
     fig, (ax1, ax2, ax3) = plt.subplots(3, sharex = True)
-    ax1.set_title('Deepfield : U-V Data Mean/Max and standard deviation')
+    ax1.set_title('Deepfield Amp vs. Time: Spw '+str(ii))
     ax1.plot(tt[0][:,0], tt[0][:,3],color='red',linewidth=1.0)
     ax1.set_ylabel('Max Amplitude [Jy]')
     ax1.grid()
@@ -1072,7 +1078,7 @@ for ii in seq:
     plt.close()
 
     fig, (ax1, ax2, ax3) = plt.subplots(3, sharex = True)
-    ax1.set_title('Deepfield: U-V Data Mean/Max and standard deviation')
+    ax1.set_title('Deepfield Amp vs. Freq: Spw '+str(ii))
     ax1.plot(tt[1][:,0], tt[1][:,3],color='red',linewidth=1.0)
     ax1.set_ylabel('Max Amplitude [Jy]')
     ax1.ticklabel_format(useOffset=False)
@@ -1215,11 +1221,12 @@ pylab.savefig('target_rms.png')
 pylab.close(fig)
 
 #Want to plot image of deepfield in each spw.  Use "imview"
+# Doesn't work on cluster.
 
-for ii in seq:
-    image_target='target_spw'+str(ii)+'.image'
-    kntr_levels=[-2*rms_target[ii]/1000.,2*rms_target[ii]/1000.,0.1*max_target[ii],0.3*max_target[ii],0.5*max_target[ii],0.7*max_target[ii],0.9*max_target[ii]]
-    imview(raster={'file':image_target, 'colorwedge':True},contour={'file':image_target,'levels':kntr_levels},out='target_spw'+str(ii)+'.png')
+# for ii in seq:
+#     image_target='target_spw'+str(ii)+'.image'
+#     kntr_levels=[-2*rms_target[ii]/1000.,2*rms_target[ii]/1000.,0.1*max_target[ii],0.3*max_target[ii],0.5*max_target[ii],0.7*max_target[ii],0.9*max_target[ii]]
+#     imview(raster={'file':image_target, 'colorwedge':True},contour={'file':image_target,'levels':kntr_levels},out='target_spw'+str(ii)+'.png')
 
 
 #Move plots, images to sub-directory
@@ -1246,18 +1253,18 @@ wlog.write('<li><a href="logs/target.log">Target Log</a></li>\n')
 wlog.write('<li> Amp vs. Frequency (time-averaged, all channels shown) and Amp vs. Time (all channels averaged): \n')
 wlog.write('<table> \n')
 for ii in seq:
-    wlog.write('<tr>\n')
-    wlog.write('<td><img src="plots/target_ampfreq_Spw'+str(ii)+'.png"></td>\n')
+    wlog.write('<tr><td> Spw = '+str(ii)+'\n')
+    wlog.write('<img src="plots/target_ampfreq_Spw'+str(ii)+'.png"></td>\n')
     wlog.write('<td><img src="plots/target_amptime_Spw'+str(ii)+'.png"></td>\n')
     wlog.write('</tr>\n')
 wlog.write('</table> \n')
 # wlog.write('<li> Spectrum of Deepfield (both LL & RR, averaged over all time & baselines): \n')
 # wlog.write('<br><img src="plots/target_spectrum_full.png">\n')
 # wlog.write('<br><img src="plots/target_spectrum_zoom.png">\n')
-wlog.write('<li> Images of Deepfield: \n')
-for ii in seq:
-    wlog.write('<br><img src="plots/target_spw'+str(ii)+'.png">\n')
-wlog.write('</li>')
+# wlog.write('<li> Images of Deepfield: \n')
+# for ii in seq:
+#     wlog.write('<br><img src="plots/target_spw'+str(ii)+'.png">\n')
+# wlog.write('</li>')
 wlog.write('<li> Measured properties of deepfield: \n')
 wlog.write('<br><img src="plots/target_beamsize.png">\n')
 wlog.write('<br><img src="plots/target_peak.png">\n')
@@ -1273,7 +1280,7 @@ wlog.write('</html>\n')
 wlog.close()
 
 
-os.system('cp *.html FINAL/.')
+#os.system('cp *.html FINAL/.')
 
 logprint ("Finished CHILES_pipe_QA1.py", logfileout='logs/QA1.log')
 time_list=runtiming('QA1', 'end')

@@ -70,10 +70,13 @@
 # v4.2:  Only using mpicasa for QA task, where tclean uses parallel=True for imaging.  Cutting down on QA imaging.  Changing importasdm to only import MS.  
 # v4.3:  Making updates to quack, QA plotting
 # v4.4:  Adding flagging reasons, split QA into QA1 & QA2 and added style to html code to help with PDF conversion
+# v4.5:  Fixed some plots, removed usage of shared memory, and included PDF conversion into "split" module.  
+######## WARNING:  For v4.5, split module will ONLY run on Spruce Knob!!! ############
 
-version = "4.4"
+
+version = "4.5"
 svnrevision = '11nnn'
-date = "2019Aug04"
+date = "2019Oct16"
 
 print "Pipeline version "+version+" for use with CASA 5.3.0"
 import sys
@@ -257,7 +260,7 @@ try:
         logprint ("Copying xml files to the output ms")
         for file in glob.glob(msname+'/*.xml'):
                 shutil.copy2(file , 'temphanning.ms/')
-        logprint ("Removing original VIS '+msname, logfileout='logs/initial.log")
+        logprint ('Removing original VIS '+msname, logfileout='logs/initial.log')
         shutil.rmtree(msname)
         logprint('Renaming temphanning.ms to '+msname, logfileout='logs/initial.log')
         os.rename('temphanning.ms', msname)

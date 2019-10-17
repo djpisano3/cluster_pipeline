@@ -1,13 +1,13 @@
 #!/bin/bash
 
 #PBS -q comm_mmem_day
-#PBS -N batch_QA2
+#PBS -N batch_split
 #PBS -m ae
 #PBS -M djpisano@mail.wvu.edu
 #PBS -l nodes=1:ppn=1,pvmem=54g
 #PBS -n 
-#PBS -e QA2.error
-#PBS -o QA2.output
+#PBS -e split.error
+#PBS -o split.output
 #PBS -l prologue=/users/djpisano/prologue.sh
 #PBS -l epilogue=/users/djpisano/epilogue.sh
 
@@ -17,4 +17,6 @@
 
 module load astronomy/casa/5.3.0
 
-/usr/bin/time -v mpicasa -n 9 /shared/software/astronomy/casa/5.3.0-143.el6/bin/casa --nogui --nologger --agg -c "var=[${PBS_ARRAYID}];execfile('/users/djpisano/cluster_pipeline/CHILES_pipeline_QA2_batch.py')"
+module load singularity/2.5.2
+
+/usr/bin/time -v casa --nogui --nologger --agg -c "var=[${PBS_ARRAYID}];execfile('/users/djpisano/cluster_pipeline/CHILES_pipeline_split_batch.py')"

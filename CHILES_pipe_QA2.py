@@ -49,12 +49,12 @@ logprint('Making QA cubes of target field', logfileout='logs/QA2.log')
 
 # Create subdirectory in /dev/shm to put MS files for quick, efficient access
 
-sharedir='/dev/shm/chiles/'
-
-if os.path.exists(sharedir):
-    shutil.rmtree(sharedir)
-
-os.mkdir(sharedir)
+# sharedir='/dev/shm/chiles/'
+# 
+# if os.path.exists(sharedir):
+#     shutil.rmtree(sharedir)
+# 
+# os.mkdir(sharedir)
 
 # Now make cubes
 for ii in seq:
@@ -79,9 +79,10 @@ for ii in seq:
         mask_name=['']    
         image_size=[64,64]
 
-        shutil.copytree(targetfile,sharedir+targetfile)
+        #shutil.copytree(targetfile,sharedir+targetfile)
 
-        vis=sharedir+targetfile
+        #vis=sharedir+targetfile
+        vis=targetfile
         imagename=image_name
         selectdata=False
         field=fieldid
@@ -127,7 +128,8 @@ for ii in seq:
         phasecenter='J2000 10h01m15.2 +02d18m24'
         iteration=2048   # Total number of iterations for the entire spw cube, ~1 per channel, only used for HI source spw 
         
-        vis=sharedir+targetfile
+        #vis=sharedir+targetfile
+        vis=targetfile
         imagename=image_name
         selectdata=False
         field=fieldid
@@ -161,18 +163,19 @@ for ii in seq:
         async=False       
         parallel=True
  #       parallel=False
+# Only run if spw=13
         if ii==13:
             tclean()
           
     except:
         logprint("Unable to image "+str(field)+", spw "+str(ii), logfileout='logs/QA2.log')
 
-    shutil.rmtree(sharedir+targetfile)
+    #shutil.rmtree(sharedir+targetfile)
 
 logprint("Finished making all cubes", logfileout='logs/QA2.log')
 
 # Remove /dev/shm/ subdirectory since we don't need it anymore.  
-shutil.rmtree(sharedir)
+#shutil.rmtree(sharedir)
 
 
 
@@ -409,8 +412,8 @@ wlog.write('</body>\n')
 wlog.write('</html>\n')
 wlog.close()
 
-os.system('cp *.html FINAL/.')
-os.system("cp -r plots FINAL/.")
+#os.system('cp *.html FINAL/.')
+#os.system("cp -r plots FINAL/.")
 
 
 
@@ -420,8 +423,8 @@ time_list=runtiming('QA2', 'end')
 pipeline_save()
 
 # Save variable values
-os.system("cp -r pipeline_shelf.restore FINAL/.")
+#os.system("cp -r pipeline_shelf.restore FINAL/.")
 
 # Copy logs to FINAL directory (needs to be after final "save" to preserve all information
-os.system("cp *.log logs")
-os.system("cp -r logs FINAL/.")
+#os.system("cp *.log logs")
+#os.system("cp -r logs FINAL/.")

@@ -13,7 +13,7 @@
 
 # Listing of sessions for testing: 1,2,5,8,9,10,16,17
 
-#PBS -t 1,2,5,8,9,10,16,17
+#PBS -t 1
 
 module load astronomy/casa/5.3.0
 

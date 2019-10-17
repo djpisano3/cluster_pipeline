@@ -1,7 +1,7 @@
 # cluster-pipeline
 README for cluster version of CHILES Pipeline
-August 6, 2019
-Version 4.4
+October 16, 2019
+Version 4.5
 
 This is the same as the CHILES pipeline in terms of how it does data reduction 
 (see github.com/djpisano3/chiles_pipeline for more details), except it has 
@@ -26,4 +26,4 @@ There are four sets of files in this distribution:
 In this version, chiles_parameters.txt contains values for running the pipeline
 only on epoch 1 & 2 data.  
 
-
+Note that the "split" code will convert the html output to PDF files, but it will only run on Spruce Knob.  
