@@ -4,6 +4,7 @@
 # 9/21/16 DJP
 # 1/10/17 DJP: Include html, logs, and plots in FINAL directory
 # 10/16/19 DJP:  Included code to convert html to PDF and copy these files to FINAL directory.  WARNING: THIS ONLY WORKS on Spruce KNOB!!!
+# 08/06/21 DJP:  Added code to make plot only for spws with data (not always 15 spws).
 
 logprint ("Starting CHILES_pipe_split.py", logfileout='logs/split.log')
 time_list=runtiming('split', 'start')
@@ -95,7 +96,21 @@ nu0=reference_frequencies[0]/1.e6 #get reference frequency in MHz
 dnu=0.015625 # channel width in MHz
 freq=[]
 
-for s in range(15):
+###------------------------------ NL Addition -------------------------------###
+# Make list of all spws with valid data
+numalllinespw = len(s_t['spw']) # Number of line spws, either 14 or 15
+seq_list = []
+# Loop through the possible spectral windows.
+for ii in range(0,numalllinespw):
+    perc = s_t['spw'][str(ii)]['flagged']/s_t['spw'][str(ii)]['total']
+    if perc < 1.: # Only retrieve the unflagged ones
+        seq_list.append(int(ii))
+# Make seq the only good values.
+seq = np.array(seq_list)
+###------------------------------ NL Addition -------------------------------###
+
+
+for s in seq:
     for c in range(2048):
         ct+=1
         chan.append(ct)
@@ -168,15 +183,15 @@ os.system("mv "+targetfile+" FINAL/")
 
 # Save calibration tables
 if os.path.exists('antposcal.p')==True:
-    os.system("cp -r antposcal.p FINAL/.")
+    shutil.move('antposcal.p','FINAL')
 
-os.system("cp -r gain_curves.g FINAL/.")
-os.system("cp -r finaldelay.k FINAL/.")
-os.system("cp -r finalBPcal.b FINAL/.")
-os.system("cp -r finalphase_scan.gcal FINAL/.")
-os.system("cp -r finalphase_int.gcal FINAL/.")
-os.system("cp -r finalamp.gcal FINAL/.")
-os.system("cp -r finalflux.gcal FINAL/.")
+shutil.move('gain_curves.g','FINAL')
+shutil.move('finaldelay.k','FINAL')
+shutil.move('finalBPcal.b','FINAL')
+shutil.move('finalphase_scan.gcal','FINAL')
+shutil.move('finalphase_int.gcal','FINAL')
+shutil.move('finalamp.gcal','FINAL')
+shutil.move('finalflux.gcal','FINAL')
 
 # Save flagging commands & statistics
 
@@ -185,7 +200,7 @@ os.system("cp *flag_stats.txt FINAL/.")
 
 # Save all Flagversions tables
 
-os.system("cp -r "+ms_active+".flagversions FINAL/.")
+shutil.move(ms_active+'.flagversions','FINAL')
 
 #Move plots, images to sub-directory, and save those.  
 
@@ -224,11 +239,11 @@ for i in ('initial','bandpass','phasecal','target','QA','split'):
     cmd_string='singularity exec /shared/software/containers/wkhtmltox.simg wkhtmltopdf --zoom 0.6 --page-size letter '+i+'.html '+i+'.pdf'
 #    cmd_string='wkhtmltopdf --zoom 0.6 --page-size letter '+i+'.html '+i+'.pdf'  # If not on Spruce Knob, assuming wkhtmltopdf is in path
     os.system(cmd_string)
-
+    shutil.move(i+'.pdf','FINAL')
 
 # Copy html files and plots to FINAL directory
-os.system("cp -r *.pdf FINAL/.")
-os.system("cp -r plots FINAL/.")
+#os.system("cp -r *.pdf FINAL/.")
+shutil.move('plots','FINAL/.')
 
 logprint ("Finished CHILES_pipe_split.py", logfileout='logs/split.log')
 time_list=runtiming('split', 'end')
@@ -236,8 +251,8 @@ time_list=runtiming('split', 'end')
 pipeline_save()
 
 # Save variable values
-os.system("cp -r pipeline_shelf.restore FINAL/.")
+shutil.move('pipeline_shelf.restore','FINAL')
 
 # Copy logs to FINAL directory (needs to be after final "save" to preserve all information
 os.system("cp *.log logs")
-os.system("cp -r logs FINAL/.")
+shutil.move('logs','FINAL')

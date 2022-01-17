@@ -20,6 +20,10 @@
 # 01/27/19 DJP:  Had trouble with plotms and imview running under mpicasa.  Trying with casa and splitting into QA1, QA2
 # 08/04/19 DJP:  Fixed html code (for converting to PDF).  Left out use of /dev/shm 
 # 10/16/19 DJP:  Updated ylim for flagging plots (always 0-1), added spw labels to BP and target plots, removed imview
+# 11/28/19 DJP:  Fixed BP plots to account for flagged solutions, replaced finalamp.gcal plots
+# 06/09/21 DJP:  Updated code to provide legends for scans/antenna on plots, plus estimated noise
+# 07/29/21 DJP:  Update to fix small bugs in QA plots, including minor tick marks and proper HTML tables
+# 08/03/21 DJP:  Added code to only loop through spws that have valid data.
 
   
 
@@ -36,8 +40,19 @@ import re as re
 import sys
 import shutil
 
-# Make list of all spws from 0-14
-seq=range(15)
+###------------------------------ NL Addition -------------------------------###
+# Make list of all spws with valid data
+numalllinespw = len(s_t['spw']) # Number of line spws, either 14 or 15
+seq_list = []
+# Loop through the possible spectral windows.
+for ii in range(0,numalllinespw):
+    perc = s_t['spw'][str(ii)]['flagged']/s_t['spw'][str(ii)]['total']
+    if perc < 1.: # Only retrieve the unflagged ones
+        seq_list.append(int(ii))
+# Make seq the only good values.
+seq = np.array(seq_list)
+###------------------------------ NL Addition -------------------------------###
+
 
 # First step involves doing all of the needed runs of "split" for plotting
 # purposes.
@@ -330,54 +345,202 @@ for ii in range(nplots):
     plotcal()
 
 #17: Bandpass solutions
-logprint ("Plotting bandpass solutions", logfileout='logs/QA1.log')
+# logprint ("Plotting bandpass solutions", logfileout='logs/QA1.log')
 
+# Get the frequency axis.
 tb.open('finalBPcal.b')
-
-# Gets all channel frequencies from BP table
 freq_table=tb.taql('select CHAN_FREQ from finalBPcal.b/SPECTRAL_WINDOW')
-
+freq = np.zeros(len(seq)*2048) # Hard coded for CHILES, should be robust to Epoch 5.
 for ii in seq:
-    # Extract frequency for given spw
-    freq=freq_table.getcol('CHAN_FREQ',ii,1)[:,0]
-    freq/=1e6  # Convert frequencies to MHz
-    # Extract BP data for given spectral window
-    soltable=tb.taql('select CPARAM from finalBPcal.b where SPECTRAL_WINDOW_ID='+str(ii))
-    # Extract complex gain values separately for each corr; returns array of channels, antennas
-    g0=soltable.getcol('CPARAM')[0]
-    g1=soltable.getcol('CPARAM')[1]
+    freq[ii*2048:(ii+1)*2048]=freq_table.getcol('CHAN_FREQ',ii,1)[:,0]/1e6
+tb.close()
+
+# Get the antenna names.
+tb.open('finalBPcal.b/ANTENNA')
+antcmd = tb.taql('select NAME from finalBPcal.b/ANTENNA')
+antnames = antcmd.getcol('NAME')
+tb.close()
+
+# Get the bandpass solutions per antenna and plot it..
+tb.open('finalBPcal.b')
+for ii in range(0,len(antnames)):
+    soltable=tb.taql('select CPARAM, FLAG from finalBPcal.b where ANTENNA1='+str(ii))
+    g0raw=soltable.getcol('CPARAM')[0]
+    g1raw=soltable.getcol('CPARAM')[1]
+    f0raw=soltable.getcol('FLAG')[0]
+    f1raw=soltable.getcol('FLAG')[1]
+
+    # # Flatten out the arrays.
+    g0 = np.zeros(len(seq)*2048,dtype=complex)
+    for jj in seq:
+        g0[jj*2048:(jj+1)*2048] = g0raw[:,jj]
+    g1 = np.zeros(len(seq)*2048,dtype=complex)
+    for jj in seq:
+        g1[jj*2048:(jj+1)*2048] = g1raw[:,jj]
+    f0 = np.zeros(len(seq)*2048,dtype=complex)
+    for jj in seq:
+        f0[jj*2048:(jj+1)*2048] = f0raw[:,jj]
+    f1 = np.zeros(len(seq)*2048,dtype=complex)
+    for jj in seq:
+        f1[jj*2048:(jj+1)*2048] = f1raw[:,jj]
+
+    # Flag out the flagged points.
+    g0[f0==True] = np.nan
+    g1[f1==True] = np.nan
+    
     # Convert complex gain to amplitude & phase
     a0=np.absolute(g0)
     a1=np.absolute(g1)
     p0=np.angle(g0,deg=True)
     p1=np.angle(g1,deg=True)
-    # Convert a=1 data and p=0 data to NaNs
-    a0[a0==1.]=np.nan
-    a1[a1==1.]=np.nan
-    p0[p0==0.]=np.nan
-    p1[p1==0.]=np.nan
+        
+    # Create minor ticks.
+    minor_ticks = np.linspace(960,1440,25)
     
+    # Plot results for Amplitudes/Phases
+    plt.close()
+    fig, ax = plt.subplots()
+    for jj in seq:
+        if jj % 2 == 0:
+            ax.plot(freq[jj*2048:(jj+1)*2048],a0[jj*2048:(jj+1)*2048],'k-',label="RR" if jj == 0 else "")
+            ax.plot(freq[jj*2048:(jj+1)*2048],a1[jj*2048:(jj+1)*2048],'b-',label="LL" if jj == 0 else "")
+        else:
+            ax.plot(freq[jj*2048:(jj+1)*2048],a0[jj*2048:(jj+1)*2048],'g-',label="RR" if jj == 1 else "")
+            ax.plot(freq[jj*2048:(jj+1)*2048],a1[jj*2048:(jj+1)*2048],'m-',label="LL" if jj == 1 else "")
+    ax.set_xlabel('Frequency [MHz]')
+    ax.set_ylabel('Gain')
+    ax.set_title('BP Gain Solutions: '+antnames[ii])
+    ax.set_xticks(minor_ticks,minor=True)
+    ax.grid(which='both')
+    ax.set_xlim(freq[0]-5.5,freq[-1]+5.5)
+    plt.legend(loc='lower right',ncol=2)
+    plt.savefig('bpamp_'+antnames[ii]+'.png')
+    plt.close()
+
+    # Create phase y limits.
+    sorted_p0 = np.sort(p0)
+    for mm in range(0,len(sorted_p0)):
+        if sorted_p0[mm] > -150.:
+            limp0=sorted_p0[mm]
+            break
+    sorted_p1 = np.sort(p1)
+    for mm in range(0,len(sorted_p1)):
+        if sorted_p1[mm] > -150.:
+            limp1=sorted_p1[mm]
+            break
+    if limp0 < limp1:
+        ylimp = [limp0-1,(limp0*-1)+1]
+    else:
+        ylimp = [limp1-1,(limp1*-1)+1]
+
+    fig, ax = plt.subplots()
+    for jj in seq:
+        if jj % 2 == 0:
+            ax.plot(freq[jj*2048:(jj+1)*2048],p0[jj*2048:(jj+1)*2048],'k-',label="RR" if jj == 0 else "")
+            ax.plot(freq[jj*2048:(jj+1)*2048],p1[jj*2048:(jj+1)*2048],'b-',label="LL" if jj == 0 else "")
+        else:
+            ax.plot(freq[jj*2048:(jj+1)*2048],p0[jj*2048:(jj+1)*2048],'g-',label="RR" if jj == 1 else "")
+            ax.plot(freq[jj*2048:(jj+1)*2048],p1[jj*2048:(jj+1)*2048],'m-',label="LL" if jj == 1 else "")
+    ax.set_xlabel('Frequency [MHz]')
+    ax.set_ylabel('Phase [deg]')
+    ax.set_title('BP Phase Solutions: '+antnames[ii])
+    ax.set_xticks(minor_ticks,minor=True)
+    ax.grid(which='both')
+    ax.set_xlim(freq[0]-5.5,freq[-1]+5.5)
+    ax.set_ylim(ylimp[0],ylimp[1])
+    plt.legend(loc='lower right',ncol=2)
+    plt.savefig('bpphase_'+antnames[ii]+'.png')
+    plt.close()
+    
+tb.close()
+
+### ----------------------------- Plots per SpW ---------------------------- ###
+
+tb.open('finalBPcal.b')
+
+# Gets all channel frequencies from BP table
+freq_table=tb.taql('select CHAN_FREQ from finalBPcal.b/SPECTRAL_WINDOW')
+# Get the number of antennas
+ant_table=tb.taql('select NAME from finalBPcal.b/ANTENNA')
+antnames = ant_table.getcol('NAME')
+numants = len(antnames)
+
+for ii in seq:
+    freq=freq_table.getcol('CHAN_FREQ',ii,1)[:,0]
+    freq/=1e6  # Convert frequencies to MHz
+    # Extract BP data for given spectral window
+    soltable=tb.taql('select CPARAM, FLAG from finalBPcal.b where SPECTRAL_WINDOW_ID='+str(ii))
+    # Extract complex gain values separately for each corr; returns array of channels, antennas
+    g0=soltable.getcol('CPARAM')[0]
+    g1=soltable.getcol('CPARAM')[1]
+    f0=soltable.getcol('FLAG')[0]
+    f1=soltable.getcol('FLAG')[1]
+
+    # Flag out the flagged points.
+    g0[f0==True] = np.nan
+    g1[f1==True] = np.nan
+    
+    # Convert complex gain to amplitude & phase
+    a0=np.absolute(g0)
+    a1=np.absolute(g1)
+    p0=np.angle(g0,deg=True)
+    p1=np.angle(g1,deg=True)
+    
+    # Create minor ticks.
+    minor_ticks = np.linspace(960,1440,25)
+    
+    ampoff = np.linspace(-1.5,1.5,numants)
     # Plot results for Amplitudes/Gains
     plt.close()
-    for ant in range(26):
-        plt.plot(freq,a0[:,ant])
-        plt.plot(freq,a1[:,ant])
-    plt.xlabel('Frequency [MHz]')
-    plt.ylabel('Gain')
-    plt.title('BP Gain Solutions, Spw='+str(ii))
+    fig, ax = plt.subplots()
+    for ant in range(numants):
+        if ant % 3 == 0:
+            cuse0='b'
+            cuse1='g'
+        if ant % 3 == 1:
+            cuse0='r'
+            cuse1='c'
+        if ant % 3 == 2:
+            cuse0='m'
+            cuse1='k'
+        ax.plot(freq,(a0[:,ant]/np.nanmax(a0[:,ant]))-ampoff[ant],c=cuse0)
+        ax.plot(freq,(a1[:,ant]/np.nanmax(a1[:,ant]))-ampoff[ant],c=cuse1)
+    ax.set_xlabel('Frequency [MHz]')
+    ax.set_ylabel('Normalized Offset Gain')
+    ax.set_title('BP Gain Solutions, Spw='+str(ii))
+    ax.set_xticks(minor_ticks,minor=True)
+    ax.grid(which='both')
+    ax.set_xlim(freq[0]-1,freq[-1]+1)
     plt.savefig('bpamp_Spw'+str(ii)+'.png')
     plt.close()
-    # Phases
-    for ant in range(26):
-        plt.plot(freq,p0[:,ant])
-        plt.plot(freq,p1[:,ant])
-    plt.xlabel('Frequency [MHz]')
-    plt.ylabel('Phase')
-    plt.title('BP Phase Solutions, Spw='+str(ii))
+
+    phaseoff = np.linspace(-20.,20.,numants)
+    fig, ax = plt.subplots()
+    for ant in range(numants):
+        if ant % 3 == 0:
+            cuse0='b'
+            cuse1='g'
+        if ant % 3 == 1:
+            cuse0='r'
+            cuse1='c'
+        if ant % 3 == 2:
+            cuse0='m'
+            cuse1='k'
+        ax.plot(freq,p0[:,ant]-phaseoff[ant],c=cuse0)
+        ax.plot(freq,p1[:,ant]-phaseoff[ant],c=cuse1)
+    ax.set_xlabel('Frequency [MHz]')
+    ax.set_ylabel('Phase')
+    ax.set_title('BP Phase Solutions, Spw='+str(ii))
+    ax.set_ylim(-30,30)
+    ax.set_xticks(minor_ticks,minor=True)
+    ax.grid(which='both')
+    ax.set_xlim(freq[0]-1,freq[-1]+1)
     plt.savefig('bpphase_Spw'+str(ii)+'.png')
     plt.close()
     
 tb.close()
+
+
 
 #Plot UV spectrum (averaged over all baselines & time) of flux calibrator
 logprint ("Plotting UVSPEC of flux calibrator", logfileout='logs/QA1.log')
@@ -391,11 +554,11 @@ for ii in seq:
 fig=plt.figure()
 for ii in seq:
     if ii % 2 == 0:
-        plt.plot(temp_spec[ii][0],temp_spec[ii][1][0],'.',markersize=0.5)
-        plt.plot(temp_spec[ii][0],temp_spec[ii][1][1],'.',markersize=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][0],color='blue',s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][1],color='blue',s=0.5)
     else:
-        plt.plot(temp_spec[ii][0],temp_spec[ii][1][0],'.',markersize=0.5)
-        plt.plot(temp_spec[ii][0],temp_spec[ii][1][1],'.',markersize=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][0],color='red',s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][1],color='red',s=0.5)
 plt.xlabel('Frequency [GHz]')
 plt.ylabel('Amplitude [Jy]')
 plt.xlim(0.95,1.43)
@@ -409,11 +572,11 @@ plt.close()
 # Phase Spectrum
 for ii in seq:
     if ii % 2 == 0:
-        plt.plot(temp_spec[ii][0],temp_spec[ii][2][0],'.',markersize=0.5)
-        plt.plot(temp_spec[ii][0],temp_spec[ii][2][1],'.',markersize=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][0],color='blue',s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][1],color='blue',s=0.5)
     else:
-        plt.plot(temp_spec[ii][0],temp_spec[ii][2][0],'.',markersize=0.5)
-        plt.plot(temp_spec[ii][0],temp_spec[ii][2][1],'.',markersize=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][0],color='red',s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][1],color='red',s=0.5)
 
 plt.xlabel('Frequency [GHz]')
 plt.ylabel('Phase [deg]')
@@ -461,6 +624,19 @@ for ii in seq:
     plt.savefig('fluxcal_phasetime_Spw'+str(ii)+'.png')
     plt.close()
 
+#  Calculate he ratio of theoretical vs. measured noise for the Bandpass/Flux Calibrator and plot them.
+amp_errors = th_exp_rat(output_ms_flux)
+# Plot the results.
+plt.semilogy(amp_errors[0], amp_errors[1],'r.-',label='Amplitude')
+plt.semilogy(amp_errors[0], amp_errors[2],'k.-',label='Phase')
+plt.xlabel('frequency [MHz]')
+plt.ylabel('measured noise:theoretical noise')
+plt.legend()
+plt.grid()
+plt.title('Expected vs. Theoretical Noise for 3C286')
+plt.savefig('bpass_calibrator_noise.png')
+plt.close()
+
 
 
 #19: 
@@ -468,7 +644,7 @@ logprint ("Imaging Flux Calibrator", logfileout='logs/QA1.log')
 
 for ii in seq:
     #19: Imaging flux calibrator in continuum
-    print 'STARTS IMAGING FLUX CALIBRATOR OF SPW='+str(ii)
+    print('STARTS IMAGING FLUX CALIBRATOR OF SPW='+str(ii))
     default('tclean')
     image_name='fluxcalibrator_spw'+str(ii)
     fieldid='1331*'
@@ -620,11 +796,43 @@ wlog.write('<br><img src="plots/finaldelay7.png">\n')
 wlog.write('<br><img src="plots/finaldelay8.png"></li>\n')
 wlog.write('<li> Bandpass solutions (amplitude and phase) for reference antenna: \n')
 wlog.write('<li> Color coded by antenna, both polarizations shown \n')
+wlog.write('# Antenna/Polarization Legend\n')
+wlog.write('# The first antenna listed is the top antenna, and the rest follow.')
+wlog.write('<table> \n')
+wlog.write('<tr><th>EA</th><th>Pol</th><th>Color</th></tr>\n')
+colors_to_use = []
+for kk in range(0, numants):
+    if kk % 3 == 0:
+        colors_to_use.append('b')
+        colors_to_use.append('g')
+        wlog.write('<tr><td>'+antnames[kk]+'</td><td>RR</td><td>Blue</td></tr>\n')
+        wlog.write('<tr><td>'+antnames[kk]+'</td><td>LL</td><td>Green</td></tr>\n')
+    if kk % 3 == 1:
+        colors_to_use.append('r')
+        colors_to_use.append('c')
+        wlog.write('<tr><td>'+antnames[kk]+'</td><td>RR</td><td>Red</td></tr>\n')
+        wlog.write('<tr><td>'+antnames[kk]+'</td><td>LL</td><td>Cyan</td></tr>\n')
+    if kk % 3 == 2:
+        colors_to_use.append('m')
+        colors_to_use.append('k')
+        wlog.write('<tr><td>'+antnames[kk]+'</td><td>RR</td><td>Magenta</td></tr>\n')
+        wlog.write('<tr><td>'+antnames[kk]+'</td><td>LL</td><td>Black</td></tr>\n')
+wlog.write('</table> \n')
+wlog.write('<br>')
 wlog.write('<table> \n')
 for ii in seq:
     wlog.write('<tr><td> Spw = '+str(ii)+'\n')
     wlog.write('<img src="plots/bpamp_Spw'+str(ii)+'.png"></td>\n')
     wlog.write('<td><img src="plots/bpphase_Spw'+str(ii)+'.png"></td></tr>\n')
+wlog.write('</table> \n')
+wlog.write('<br>')
+wlog.write('<li> Bandpass solutions (amplitude and phase) for each antenna: \n')
+wlog.write('<li> Color coded by polarization and Spw\n')
+wlog.write('<table> \n')
+for kk in range(0, numants):
+    wlog.write('<tr><td>'+antnames[kk]+'\n')
+    wlog.write('<img src="plots/bpamp_'+antnames[kk]+'.png"></td>\n')
+    wlog.write('<td><img src="plots/bpphase_'+antnames[kk]+'.png"></td></tr>\n')
 wlog.write('</table> \n')
 wlog.write('<br>')
 wlog.write('<li> Amp vs. Phase (averaged over all channels in a spw): \n')
@@ -646,6 +854,10 @@ for ii in seq:
     wlog.write('<td><img src="plots/fluxcal_phasetime_Spw'+str(ii)+'.png"></td></tr>\n')
 wlog.write('</table> \n')
 wlog.write('</li>')
+wlog.write('<br>')
+wlog.write('<li> Expected vs. Theoretical Noise for 3C286\n')
+wlog.write('<br><img src="plots/bpass_calibrator_noise.png"></li>\n')
+wlog.write('<br>\n')
 wlog.write('<li> Measured properties of flux calibrator: \n')
 wlog.write('<br><img src="plots/fluxcal_beamsize.png">\n')
 wlog.write('<br><img src="plots/fluxcal_peak.png">\n')
@@ -730,7 +942,7 @@ pylab.savefig("phase_flag.png")
 pylab.close(fig)
 
 #Plot UV spectrum (averaged over all baselines & time) of phase calibrator
-logprint ("Plot UVSPEC of phasecalibrator", logfileout='logs/QA1.log')
+logprint ("Plot UVSPEC of phase calibrator", logfileout='logs/QA1.log')
 
 temp_spec = []
 for ii in seq:
@@ -741,11 +953,11 @@ for ii in seq:
 fig=plt.figure()
 for ii in seq:
     if ii % 2 == 0:
-        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][0],s=0.5)
-        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][1],s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][0],color='blue',s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][1],color='blue',s=0.5)
     else:
-        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][0],s=0.5)
-        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][1],s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][0],color='red',s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][1][1],color='red',s=0.5)
 plt.xlabel('Frequency [GHz]')
 plt.ylabel('Amplitude [Jy]')
 plt.xlim(0.95,1.43)
@@ -759,11 +971,11 @@ plt.close()
 # Phase Spectrum
 for ii in seq:
     if ii % 2 == 0:
-        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][0],s=0.5)
-        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][1],s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][0],color='blue',s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][1],color='blue',s=0.5)
     else:
-        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][0],s=0.5)
-        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][1],s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][0],color='red',s=0.5)
+        plt.scatter(temp_spec[ii][0],temp_spec[ii][2][1],color='red',s=0.5)
 
 plt.xlabel('Frequency [GHz]')
 plt.ylabel('Phase [deg]')
@@ -811,10 +1023,23 @@ for ii in seq:
     plt.savefig('phasecal_phasetime_Spw'+str(ii)+'.png')
     plt.close()
 
+#  Calculate the ratio of theoretical vs. measured noise for the Complex Gain Calibrator and plot them.
+phase_errors = th_exp_rat(output_ms_phase)
+# Plot the results.
+plt.semilogy(phase_errors[0], phase_errors[1],'r.-',label='Amplitude')
+plt.semilogy(phase_errors[0], phase_errors[2],'k.-',label='Phase')
+plt.xlabel('frequency [MHz]')
+plt.ylabel('measured noise:theoretical noise')
+plt.legend()
+plt.grid()
+plt.title('Expected vs. Theoretical Noise for J0943-0819')
+plt.savefig('phase_calibrator_noise.png')
+plt.close()
+
 
 #Image phase cal: 
 for ii in seq:
-    print 'STARTS IMAGING PHASE CALIBRATOR OF SPW='+str(ii)
+    print('STARTS IMAGING PHASE CALIBRATOR OF SPW='+str(ii))
     default('tclean')
     image_name='phasecalibrator_spw'+str(ii)
     fieldid='J0943*'
@@ -931,19 +1156,168 @@ pylab.yscale('log')
 pylab.savefig('phasecal_rms.png')
 pylab.close(fig)
 
-logprint ("Plot calibration tables", logfileout='logs/QA1.log')
-#Plot calibration tables
-default('plotcal')
-caltable='finalamp.gcal'
-xaxis='time'
-yaxis='amp'
-showgui=False
-figfile='caltable_finalamp_amp.png'
-plotcal()
+#logprint ("Plot calibration tables", logfileout='logs/QA1.log')
+# #Plot calibration tables
+# default('plotcal')
+# caltable='finalamp.gcal'
+# xaxis='time'
+# yaxis='amp'
+# showgui=False
+# figfile='caltable_finalamp_amp.png'
+# plotcal()
+# 
+# yaxis='phase'
+# figfile='caltable_finalamp_phase.png'
+# plotcal()
 
-yaxis='phase'
-figfile='caltable_finalamp_phase.png'
-plotcal()
+logprint ("Plotting Final Gain solutions", logfileout='logs/QA1.log')
+
+# Create string arrays of the relevant antenna and scan parameters.
+tb.open(ms_active) # Or whatever the hell the variable is.
+
+# The variable ~ants~ now is an array where each index lines up with the antenna
+# ea name.
+qry1=tb.taql('select NAME from '+ms_active+'/ANTENNA')
+ants=qry1.getcol('NAME')
+
+# The vairable ~pcscans~ now is an array where each index lines up with the pcal
+# scans.
+qry2=tb.taql('select SCAN_NUMBER from '+ms_active+' where FIELD_ID=0')
+everyscan=qry2.getcol('SCAN_NUMBER')
+uni_scans_int = np.unique(everyscan)
+pcscans=np.array(uni_scans_int,dtype=str)
+
+tb.close()
+
+# Associate Antenna index number with Antenna name
+tb.open('finalamp.gcal/ANTENNA')
+antcmd = tb.taql('select NAME from finalamp.gcal/ANTENNA')
+antnames = antcmd.getcol('NAME')
+tb.close()
+
+
+# Get and plot the gain table info.
+tb.open('finalamp.gcal')
+
+scancmd = tb.taql('select SCAN_NUMBER from finalamp.gcal where SPECTRAL_WINDOW_ID=0')
+scans = scancmd.getcol('SCAN_NUMBER')
+allscans = np.unique(scans)
+
+
+for ii in seq:
+    # Extract Relevant data from calibration table.
+    soltable=tb.taql('select CPARAM, FLAG, ANTENNA1, SCAN_NUMBER from finalamp.gcal where SPECTRAL_WINDOW_ID='+str(ii))
+    scans=soltable.getcol('SCAN_NUMBER')
+    uni_scans = np.unique(scans)
+
+    # Find the max antenna number for loop.
+    antenna = soltable.getcol('ANTENNA1')
+    max_antenna = np.max(antenna)+1
+
+    pol1amp = np.zeros((max_antenna,len(uni_scans)))
+    pol2amp = np.zeros((max_antenna,len(uni_scans)))
+    pol1phase = np.zeros((max_antenna,len(uni_scans)))
+    pol2phase = np.zeros((max_antenna,len(uni_scans)))
+
+    # Loop through and get each antenna's info.
+    for jj in range(0,max_antenna):
+        temptable=tb.taql('select CPARAM, FLAG, ANTENNA1 from finalamp.gcal where SPECTRAL_WINDOW_ID='+str(ii)\
+                           +' and ANTENNA1='+str(jj))
+
+        # Create a data array.
+        g0=temptable.getcol('CPARAM')[0]
+        g1=temptable.getcol('CPARAM')[1]
+        f0=temptable.getcol('FLAG')[0]
+        f1=temptable.getcol('FLAG')[1]
+        # Flag out the flagged points.
+        g0[f0==True] = np.nan
+        g1[f1==True] = np.nan
+        # Convert complex gain to amplitude & phase
+        a0=np.absolute(g0)
+        a1=np.absolute(g1)
+        p0=np.angle(g0,deg=True)
+        p1=np.angle(g1,deg=True)
+
+        pol1amp[jj] = a0
+        pol2amp[jj] = a1
+        pol1phase[jj] = p0
+        pol2phase[jj] = p1
+    
+    # Plot results for Amplitudes
+    xtickmarks = range(len(allscans))
+    ytickmarks = range(len(antnames))
+    plt.close()
+    fig, ax = plt.subplots(1,2)
+    ax[0] = plt.subplot(1,2,1)
+    plt.imshow(pol1amp,origin='lower',interpolation='none',vmin=0.9,vmax=1.1)
+    cbar = plt.colorbar(orientation='horizontal',ticks=[0.925,0.975,1.025,1.075])
+    cbar.set_label('amplitude')
+    ax[0].set_xlabel('scan index')
+    ax[0].set_ylabel('antenna index')
+    ax[0].set_title('RR Amplitude Solutions Spw '+str(ii))
+    ax[0].set_xticks(xtickmarks,minor=True)
+    ax[0].set_yticks(ytickmarks,minor=True)
+    ax[1] = plt.subplot(1,2,2)
+    ax[1].hist(pol1amp.flatten(),alpha=0.5,range=(0.9,1.1),bins=20)
+    ax[1].grid()
+    ax[1].set_title('Noise: '+str(np.nanstd(pol1amp.flatten()))[:5])
+    plt.savefig('RR_fluxamp_Spw'+str(ii)+'.png')
+    plt.close()
+
+    fig, ax = plt.subplots(1,2)
+    ax[0] = plt.subplot(1,2,1)
+    plt.imshow(pol2amp,origin='lower',interpolation='none',vmin=0.9,vmax=1.1)
+    cbar = plt.colorbar(orientation='horizontal',ticks=[0.925,0.975,1.025,1.075])
+    cbar.set_label('amplitude')
+    ax[0].set_xlabel('scan index')
+    ax[0].set_ylabel('antenna index')
+    ax[0].set_title('LL Amplitude Solutions Spw '+str(ii))
+    ax[0].set_xticks(xtickmarks,minor=True)
+    ax[0].set_yticks(ytickmarks,minor=True)
+    ax[1] = plt.subplot(1,2,2)
+    ax[1].hist(pol2amp.flatten(),alpha=0.5,range=(0.9,1.1),bins=20)
+    ax[1].grid()
+    ax[1].set_title('Noise: '+str(np.nanstd(pol2amp.flatten()))[:5])
+    plt.savefig('LL_fluxamp_Spw'+str(ii)+'.png')
+    plt.close()
+
+    # Plot results for Phases
+    fig, ax = plt.subplots(1,2)
+    ax[0] = plt.subplot(1,2,1)
+    plt.imshow(pol1phase,origin='lower',interpolation='none',vmin=-0.1,vmax=0.1)
+    cbar = plt.colorbar(orientation='horizontal',ticks=[-0.075,-0.025,0.025,0.075])
+    cbar.set_label('phase')
+    ax[0].set_xlabel('scan index')
+    ax[0].set_ylabel('antenna index')
+    ax[0].set_title('RR Phase Solutions Spw '+str(ii))
+    ax[0].set_xticks(xtickmarks,minor=True)
+    ax[0].set_yticks(ytickmarks,minor=True)
+    ax[1] = plt.subplot(1,2,2)
+    ax[1].hist(pol1phase.flatten(),alpha=0.5,range=(-0.1,0.1),bins=20)
+    ax[1].grid()
+    ax[1].set_title('Noise: '+str(np.nanstd(pol1phase.flatten()))[:5])
+    plt.savefig('RR_fluxphase_Spw'+str(ii)+'.png')
+    plt.close()
+
+    fig, ax = plt.subplots(1,2)
+    ax[0] = plt.subplot(1,2,1)
+    plt.imshow(pol2phase,origin='lower',interpolation='none',vmin=-0.1,vmax=0.1)
+    cbar = plt.colorbar(orientation='horizontal',ticks=[-0.075,-0.025,0.025,0.075])
+    cbar.set_label('phase')
+    ax[0].set_xlabel('scan index')
+    ax[0].set_ylabel('antenna index')
+    ax[0].set_title('LL Phase Solutions Spw '+str(ii))
+    ax[0].set_xticks(xtickmarks,minor=True)
+    ax[0].set_yticks(ytickmarks,minor=True)
+    ax[1] = plt.subplot(1,2,2)
+    ax[1].hist(pol2phase.flatten(),alpha=0.5,range=(-0.1,0.1),bins=20)
+    ax[1].grid()
+    ax[1].set_title('Noise: '+str(np.nanstd(pol2phase.flatten()))[:5])
+    plt.savefig('LL_fluxphase_Spw'+str(ii)+'.png')
+    plt.close()
+    
+tb.close()
+
 
 #Move plots, images to sub-directory
 
@@ -968,10 +1342,36 @@ wlog.write('<hr>\n')
 wlog.write('<center>CHILES_pipe_phasecal results:</center>')
 wlog.write('<li> Session: '+SDM_name+'</li>\n')
 wlog.write('<li><a href="logs/phasecal.log">Phasecal Log</a></li>\n')
-wlog.write('<li>finalamp.gcal: Amp vs. Time: \n')
-wlog.write('<br><img src="plots/caltable_finalamp_amp.png"></li>\n')
-wlog.write('<li>finalamp.gcal: Phase vs. Time: \n')
-wlog.write('<br><img src="plots/caltable_finalamp_phase.png"></li>\n')
+wlog.write('<br>\n')
+wlog.write('# Antenna Index Key\n')
+wlog.write('<table> \n')
+wlog.write('<tr><th>Index</th><th>Antenna</th></tr>\n')
+for ii in range(0,len(antnames)):
+    wlog.write('<tr><td>'+str(ii).zfill(3)+'</td><td>'+str(antnames[ii]).zfill(3)+'</td></tr>\n')
+wlog.write('</table> \n')
+wlog.write('# Scan Index Key\n')
+wlog.write('<table> \n')
+wlog.write('<tr><th>Index</th><th>Scan</th></tr>\n')
+for ii in range(0,len(allscans)):
+    wlog.write('<tr><td>'+str(ii).zfill(3)+'</td><td>'+str(allscans[ii]).zfill(3)+'</td></tr>\n')
+wlog.write('</table> \n')
+wlog.write('<br>\n')
+wlog.write('<li>finalamp.gcal, RR pol \n')
+wlog.write('<table> \n')
+for ii in seq:
+    wlog.write('<tr>\n')
+    wlog.write('<td><img src="plots/RR_fluxamp_Spw'+str(ii)+'.png"></td>\n')
+    wlog.write('<td><img src="plots/RR_fluxphase_Spw'+str(ii)+'.png"></td>\n')
+    wlog.write('</tr>\n')
+wlog.write('</table> \n')
+wlog.write('<li>finalamp.gcal, LL pol \n')
+wlog.write('<table> \n')
+for ii in seq:
+    wlog.write('<tr>\n')
+    wlog.write('<td><img src="plots/LL_fluxamp_Spw'+str(ii)+'.png"></td>\n')
+    wlog.write('<td><img src="plots/LL_fluxphase_Spw'+str(ii)+'.png"></td>\n')
+    wlog.write('</tr>\n')
+wlog.write('</table> \n')
 wlog.write('<li> Amp vs. Phase: \n')
 for ii in seq:
     wlog.write('<br><img src="plots/phasecal_ampphase_Spw'+str(ii)+'.png">\n')
@@ -993,6 +1393,10 @@ for ii in seq:
     wlog.write('</tr>\n')
 wlog.write('</table> \n')
 wlog.write('</li>')
+wlog.write('<br>')
+wlog.write('<li> Expected vs. Theoretical Noise for Phase Calibrator\n')
+wlog.write('<br><img src="plots/phase_calibrator_noise.png"></li>\n')
+wlog.write('<br>\n')
 wlog.write('<li> Measured properties of phase calibrator: \n')
 wlog.write('<br><img src="plots/phasecal_beamsize.png">\n')
 wlog.write('<br><img src="plots/phasecal_peak.png">\n')
@@ -1105,7 +1509,7 @@ for ii in seq:
 
 #Image target: 
 for ii in seq:
-    print 'STARTS IMAGING Deepfield OF SPW='+str(ii)
+    print('STARTS IMAGING Deepfield OF SPW='+str(ii))
     default('tclean')
     image_name='target_spw'+str(ii)
     fieldid='deepfield'

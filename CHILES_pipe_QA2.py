@@ -19,6 +19,7 @@
 # 01/25/19 DJP:  Removed all phasecal cube imaging/measurements
 # 01/27/19 DJP:  Had trouble with plotms and imview running under mpicasa.  Trying with casa and splitting into QA1, QA2
 # 08/02/19 DJP:  Including use of /dev/shm to avoid large amounts of I/O.  Hopefully it runs faster too.  
+# 08/03/21 DJP:  Added code to only loop through spws that have valid data.
 
   
 
@@ -36,9 +37,21 @@ import sys
 import shutil
 
 # Define some variables
-seq=range(15)
 ms_name=ms_active[:-3]
 targetms=ms_active[:-3]+'_calibrated_deepfield'
+
+###------------------------------ NL Addition -------------------------------###
+# Make list of all spws with valid data
+numalllinespw = len(s_t['spw']) # Number of line spws, either 14 or 15
+seq_list = []
+# Loop through the possible spectral windows.
+for ii in range(0,numalllinespw):
+    perc = s_t['spw'][str(ii)]['flagged']/s_t['spw'][str(ii)]['total']
+    if perc < 1.: # Only retrieve the unflagged ones
+        seq_list.append(int(ii))
+# Make seq the only good values.
+seq = np.array(seq_list)
+###------------------------------ NL Addition -------------------------------###
 
 
 # Make cubes for QA purposes
@@ -119,7 +132,6 @@ for ii in seq:
         tclean()
 
 # Make small cube of lowest z detection
-        logprint ('Make cube of strongest pilot detection, Spw='+str(ii), logfileout='logs/QA2.log')
 
         default('tclean')
     
@@ -165,6 +177,7 @@ for ii in seq:
  #       parallel=False
 # Only run if spw=13
         if ii==13:
+            logprint ('Make cube of strongest pilot detection, Spw='+str(ii), logfileout='logs/QA2.log')
             tclean()
           
     except:

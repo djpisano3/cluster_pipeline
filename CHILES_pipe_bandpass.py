@@ -34,12 +34,14 @@
 # 11/6/18 DJP: Removing all plotting at end of module.  
 # 12/19/18 DJP: Moved mask flags to initial module
 
+
 #Part I: define some variables that will be used later
 import copy
 import numpy as np
 import pylab as pylab
 import re as re
 import sys
+import shutil as shutil
 
 logprint ("Starting CHILES_pipe_bandpass.py", logfileout='logs/bandpass.log')
 time_list=runtiming('bandpass', 'start')
@@ -124,7 +126,7 @@ listmodimages=False
 scalebychan=True
 fluxdensity=-1
 standard='Perley-Butler 2013'
-usescratch=False         # DJP: Okay to be False in version 4.5.  
+usescratch=False         # DJP: Okay to be False in CASA version 4.5.  
 setjy()
 
 
@@ -583,8 +585,8 @@ async=False
 applycal()
 
 # Backup finalBPcal table
-
 os.system('cp -r finalBPcal.b finalBPcal_backup.b')
+#shutil.copy('finalBPcal.b','finalBPcal_backup.b')
 
 # Save flags
 logprint ("Saving flags", logfileout='logs/bandpass.log')

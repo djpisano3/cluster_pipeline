@@ -19,6 +19,8 @@
 # 12/9/16 DJP:  Added additional flagging to completely flag any channel that is already more than 90% flagged (code from XF).
 # 4/22/18 DJP: Changing flagging and split to oldsplit
 # 8/29/18 DJP: Changed field='1' to field='deepfield' and other fields to their name instead of number.  
+# 08/03/21 DJP:  Added section to flag target if 90% of bandpass or phasecal visibilities in a spw are flagged.
+#                Code for this written by NML
 
 
 
@@ -238,6 +240,35 @@ for a in s_t['spw:channel']:
 strChan = ','.join(flagChannels)
 
 flagdata(vis=ms_active,field='deepfield',mode="manual",spw=strChan, flagbackup=False, autocorr=False)
+
+###---------------------------- NL 2021 Addition ----------------------------###
+
+# Create boolean arrays to check if the flagging threshold is met.
+bpass_flg = np.zeros(len(s_b['spw']))
+phase_flg = np.zeros(len(s_p['spw']))
+
+# Loop through each SpW and see the flagging percent.
+for ii in range(0,len(bpass_flg)):
+    bflgperc = s_b['spw'][str(ii)]['flagged']/s_b['spw'][str(ii)]['total']
+    pflgperc = s_p['spw'][str(ii)]['flagged']/s_p['spw'][str(ii)]['total']
+    if bflgperc > 0.9:
+        bpass_flg[ii] = 1
+    if pflgperc > 0.9:
+        phase_flg[ii] = 1
+
+flgbool = bpass_flg + phase_flg # If any spw is greater than 1 flag everything.
+for ii in range(0, len(flgbool)):
+    if flgbool[ii] > 0:
+        # The flagging command.
+        default('flagdata')
+        vis=ms_active
+        mode='manual'
+        spw=str(ii)
+        action='apply'
+        flagdata()
+clearstat()
+###---------------------------- NL 2021 Addition ----------------------------###
+
 
 
 # Save final version of flags

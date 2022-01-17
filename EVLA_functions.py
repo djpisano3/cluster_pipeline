@@ -2263,4 +2263,68 @@ def mask_check_plot_v2(visil):
     return [xaxis, amps]
 
 
+# Functions for comparing theoretical to measured noise for calibrator
+
+def findSEFD(fq, sefddata):
+    """Find the SEFD for a given frequency."""
+    sefd = np.loadtxt(pipepath+sefddata) # Load in SEFD.
+    for ii in range(0,len(sefd)): # Loop through until we find right frequency.
+        if sefd[ii][0] > fq:
+            return 0.5*(sefd[ii][1]+sefd[ii-1][1])
+
+def theorynoise(width,inttime,sefdval,nvis):
+    """Calculated thermal noise prediction."""
+    return sefdval/(0.93*np.sqrt(nvis*inttime*width))
+
+def model_3C286(fr):
+    """Get the 3C286 flux at a certain frequency."""
+    flog = np.log10(fr/1e3)
+    a = np.array([1.252,-0.46,-0.17,0.034])
+    return 10**(a[0]+(a[1]*flog)+(a[2]*flog*flog)+(a[3]*flog*flog*flog))
+
+def model_cg(x):
+    """Get the flux of the complex gain calibrator at a certain frequency."""
+    return 10**((np.log10(x/1e3)*-0.59368523)+0.51273494)
+
+def ff(visib):
+    # Some starting functions.
+    ms.open(visib) # Open measurement set.
+    spwinfo = ms.getspectralwindowinfo() # Get a dictionary with SpW info.
+    bwidth = spwinfo['0']['ChanWidth']/1e6 # the bandwidth in MHz.
+    nvis_summary = flagdata(vis=visib,mode='summary',action='calculate')['spw'] # Fetch number of visibilities.
+    # Instantiate a bunch of useful arrays. (Sloppy, but fine.)
+    cntrfreqs = np.zeros(len(spwinfo))
+    sefds = np.zeros(len(cntrfreqs))
+    nvisib = np.zeros(len(cntrfreqs))
+    thermnoise = np.zeros(len(cntrfreqs))
+    ampstd = np.zeros(len(cntrfreqs))
+    phastd = np.zeros(len(cntrfreqs))
+    phanoise = np.zeros(len(cntrfreqs))
+    amperr = np.zeros(len(cntrfreqs))
+    phaerr = np.zeros(len(cntrfreqs))
+    # Loop through and do some math for each spectral window.
+    for ii in range(0,len(spwinfo)):
+        # Fetch the field name.
+        cmd='select NAME from '+visib+'/FIELD'
+        tb.open(visib)
+        namearray = tb.taql(cmd)
+        field = namearray.getcol('NAME')[0]
+        tb.close()
+        cntrfreqs[ii] = spwinfo[str(ii)]['Chan1Freq']/1e6 # Central Frequency of the SpW.
+        sefds[ii] = findSEFD(cntrfreqs[ii], 'L_SEFD_final.dat') # Appropriate value for the SEFD at this frequency.
+        nvisib[ii] = nvis_summary[str(ii)]['total']-nvis_summary[str(ii)]['flagged'] # Total number of visibilities.
+        thermnoise[ii] = theorynoise(bwidth,8,sefds[ii],nvisib[ii]) # The theoretical noise.
+        ampstat = ms.statistics(column='data',complex_value='amplitude',spw=str(ii)) # StD of amplitudes.
+        ampstd[ii] = ampstat['']['stddev']
+        phastat = ms.statistics(column='data',complex_value='phase',spw=str(ii)) # StD of phases.
+        phastd[ii] = phastat['']['stddev']
+        if field == 'J0943-0819':
+            phanoise[ii] = 1/np.sqrt(1+((model_cg(cntrfreqs[ii])**2)/(thermnoise[ii]**2))) # Theoretical noise for phase.
+        else:
+            phanoise[ii] = 1/np.sqrt(1+((model_3C286(cntrfreqs[ii])**2)/(thermnoise[ii]**2))) # Theoretical noise for phase.
+        amperr[ii] = ampstd[ii]/thermnoise[ii]
+        phaerr[ii] = phastd[ii]/phanoise[ii]
+    ms.close()
+
+    return [cntrfreqs, amperr, phaerr]
 

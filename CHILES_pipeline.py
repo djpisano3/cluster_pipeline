@@ -20,7 +20,7 @@ pipepath='/users/djpisano/cluster_pipeline/'
 # Set parent data directory (so data can be found)
 #datapath='/data/dpisano/CHILES/DATA/'
 #datapath='/lustre/aoc/projects/chiles/phase2/'
-datapath='/scratch/djpisano/epoch2/'
+datapath='/scratch/djpisano/'
 if os.getcwd() != datapath:
     os.chdir(datapath)
 

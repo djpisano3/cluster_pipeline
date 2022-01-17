@@ -844,6 +844,7 @@ AllSpwMapValues.append([])
 
 # Backup finalamp.gcal table
 os.system('cp finalamp.gcal finalamp_backup.gcal')
+#shutil.copy('finalamp.gcal','finalamp_backup.gcal')
 
 # HG: set gainfield appropriately depending if antposcal.p exists or not.  
 if os.path.exists('antposcal.p')==True:  

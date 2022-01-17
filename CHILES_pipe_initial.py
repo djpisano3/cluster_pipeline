@@ -71,14 +71,20 @@
 # v4.3:  Making updates to quack, QA plotting
 # v4.4:  Adding flagging reasons, split QA into QA1 & QA2 and added style to html code to help with PDF conversion
 # v4.5:  Fixed some plots, removed usage of shared memory, and included PDF conversion into "split" module.  
-######## WARNING:  For v4.5, split module will ONLY run on Spruce Knob!!! ############
+######## WARNING:  For v4.5 and beyond, split module will ONLY run on Spruce Knob!!! ############
+# v4.6:  Updated BP/UVSPEC plots, finalamp.gcal plots, increased quack interval, and changed mv/cp commands to shutil commands.  
+# v5.0:  Updated flagging to accomodate changes in masks and manual flags; this will allow for running different epochs and re-running.
+# v5.1:  Updated metadata for plots to help with manual QA.
+# v5.2:  Updated target, QA1, QA2 for QA plots and flagged spws, fixed error handling
 
-
-version = "4.5"
+# Version control variables and print statement.
+version = "5.2"
 svnrevision = '11nnn'
-date = "2019Oct16"
+date = "2021Aug03"
 
 print "Pipeline version "+version+" for use with CASA 5.3.0"
+
+# Import modules.
 import sys
 import pylab as pylab
 # include additional packages for hanningsmooth
@@ -115,16 +121,16 @@ def find(name,path):
         if name in files:
             return os.path.join(root,name)
 
-#This is the default time-stamped casa log file, in case we
-#    need to return to it at any point in the script
+# Construct directory for individual log files.
 log_dir='logs'
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
-#maincasalog = casalogger.func_globals['thelogfile']
+# The time-stamped CASA log.
 maincasalog=casalog.logfile()
 
 def logprint(msg, logfileout=maincasalog):
+    """Print a message to the CASA generated log file."""
     print (msg)
     casalog.setlogfile(logfileout)
     casalog.post(msg)
@@ -147,19 +153,17 @@ def runtiming(pipestate, status):
     '''Determine profile for a given state/stage of the pipeline
     '''
     time_list.append({'pipestate':pipestate, 'time':time.time(), 'status':status})
-#    
+    
     if (status == "end"):
         timelog=open(timing_file,'a')
         timelog.write(pipestate+': '+str(time_list[-1]['time'] - time_list[-2]['time'])+' sec \n')
         timelog.flush()
-        timelog.close()
-        #with open(maincasalog, 'a') as casalogfile:
-        #    tempfile = open('logs/'+pipestate+'.log','r')
-        #    casalogfile.write(tempfile.read())
-        #    tempfile.close()
-        #casalogfile.close()
-#        
+        timelog.close()        
+ 
     return time_list
+
+
+### Starting the Pipeline ###
 
 # Now to get things setup for the pipeline
 
@@ -171,32 +175,14 @@ execfile(pipepath+'CHILES_pipe_startup.py')
 time_list=runtiming('startup', 'end')
 pipeline_save()
 
+
+
 try:
 
 ######################################################################
+### Running the pipeline ###
 
     time_list=runtiming('initial', 'start')
-
-# Query user to set snrval, minBL_for_cal, and uvmin (all for calibration solutions)
-    
-#Set minimum # of baselines need for a solution to 8, based on experience
-#    minBL_for_cal=raw_input("What is the minimum number of baselines required for a calibration solution (default=8; hit return for default): ")
-#    if minBL_for_cal=='':
-#        minBL_for_cal=int(8)
-#    else:
-#        minBL_for_cal=int(minBL_for_cal)
-#
-##Set uvrange to apply in order to optimally exclude RFI without flagging:
-#    uvr_cal=raw_input("What should the minimum uvrange be for a calibration solution (default='>1500m'; hit return for default): ")
-#    if uvr_cal=='':
-#        uvr_cal='>1500m'
-#
-##Set minsnr value to use in calibration tasks:
-#    snrval=raw_input("What is the minimum SNR needed to solve for calibration (default=8; hit return for default): ")
-#    if snrval=='':
-#        snrval=float(8.)
-#    else:
-#        snrval=float(snrval)
 
 # IMPORT THE DATA TO CASA
 
@@ -575,13 +561,10 @@ try:
     numAntenna = len(nameAntenna)
     tbLoc.close()
 
-#    minBL_for_cal=max(3,int(numAntenna/2.0))
-
 # Set 3C84 variables so the pipeline doesn't complain later:
     cal3C84_d = False
     cal3C84_bp = False
     cal3C84 = False
-    #uvrange3C84 = '0~1800klambda'
     uvrange3C84 = ''
 
 # Identify bands/basebands/spws
@@ -655,7 +638,7 @@ try:
         logprint ("No missing scans found.", logfileout='logs/initial.log')
     
 
-#8/7/18 DJP:  We can get nice plots without the Plot window using "prtants" if we run CASA with the --agg flag.  Commenting out PRTAN code.
+#8/7/18 DJP:  We can get nice plots without the Plot window using "prtants" if we run CASA with the --agg flag.  Replacing old PRTAN code.
     default('plotants')
     vis=ms_active
     figfile='antpos.png'
@@ -663,9 +646,11 @@ try:
     antindex=False  # This number is superfluous
     plotants()
     if os.path.exists('plots')==False:
-        os.system("mkdir plots")
-    os.system("mv antpos.png plots/.")
-
+        #os.system("mkdir plots")
+        os.mkdir('plots')
+    #os.system("mv antpos.png plots/.")
+    shutil.move('antpos.png','plots')
+    
 ######################################################################
 
 # Flagging bad antennas
@@ -717,9 +702,8 @@ try:
     syscommand='rm -rf '+outputflagfile
     os.system(syscommand)
         
-# Zero flagging done on import in version 0.10 and following, but in case it wasn't.
-# First do zero flagging (cmdreason='CLIP_ZERO_ALL')
-# 8/29/18 DJP:  This will need to be done again when importasdm is used.
+# Zero flagging done on import, but in case it wasn't.
+
     default('flagdata')
     vis=ms_active
     mode='clip'
@@ -739,6 +723,7 @@ try:
           
 # Now shadow flagging
 # Not needed for B configuration observations
+# Leaving in here in case code is used for other configurations
     #default('flagdata')
     #vis=ms_active
     #mode='shadow'
@@ -755,10 +740,10 @@ try:
     cmdreason_list=[]
 
 
-# Quack the data, update to 1.5*int_time, but with increment=True
+# Quack the data, updated to 2.5*int_time, but with increment=True
     logprint ("Quack the data", logfileout='logs/initial.log')
     flagdata_list.append("mode='quack' scan=" + quack_scan_string +
-        " quackinterval=" + str(1.5*int_time) + " quackmode='beg' " +
+        " quackinterval=" + str(2.5*int_time) + " quackmode='beg' " +
         "quackincrement=True")
     
 #Write out list for use in flagdata mode 'list'
@@ -799,7 +784,7 @@ try:
     flagmanager()
     logprint ("Flag column saved to "+versionname, logfileout='logs/initial.log')
     
-# Summary of flagging, after initial flags (for testing purposes only)
+# Summary of flagging, after initial flags
     logprint ("Summary of flags at end of initial flagging", logfileout='logs/initial.log')
     default('flagdata')
     vis=ms_active
@@ -835,118 +820,100 @@ try:
     pylab.ylabel('flagged data [%]')
     pylab.xlabel('average UV distance [m]')
     pylab.savefig('initial_flag_uvdist.png')
-    os.system("mv initial_flag_uvdist.png plots/.") 
+    #os.system("mv initial_flag_uvdist.png plots/.") 
+    shutil.move('initial_flag_uvdist.png','plots')
+
     
-# Flag regions that are badly affected by RFI on calibrators only.
-# Mask below is for Epoch 2:
-    flag_spw=('*:952.6~952.9MHz,'
-    '*:977.64~977.72MHz,'
-    '*:985.0~989.5MHz,'
-    '*:991.5~996.0MHz,'
-    '*:1029.35~1030.65MHz,'
-    '*:1040.8~1041.3MHz,'
-    '*:1042.7~1043.1MHz,'
-    '*:1044.7~1045.2MHz,'
-    '*:1045.8~1046.3MHz,'
-    '*:1046.8~1047.2MHz,'
-    '*:1048.75~1049.3MHz,'
-    '*:1051.8~1052.25MHz,'
-    '*:1052.85~1053.15MHz,'
-    '*:1053.9~1054.15MHz,'
-    '*:1055.9~1056.2MHz,'
-    '*:1056.85~1057.2MHz,'
-    '*:1059.7~1060.5MHz,'
-    '*:1060.85~1061.2MHz,'
-    '*:1061.85~1062.2MHz,'
-    '*:1063.8~1064.5MHz,'
-    '*:1064.8~1065.2MHz,'
-    '*:1066.8~1067.2MHz,'
-    '*:1067.8~1068.2MHz,'
-    '*:1068.8~1069.2MHz,'
-    '*:1069.8~1070.2MHz,'
-    '*:1070.8~1071.2MHz,'
-    '*:1071.8~1072.2MHz,'
-    '*:1072.8~1073.2MHz,'
-    '*:1075.8~1076.2MHz,'
-    '*:1076.8~1077.2MHz,'
-    '*:1077.8~1078.2MHz,'
-    '*:1079.8~1080.2MHz,'
-    '*:1080.8~1081.2MHz,'
-    '*:1081.8~1082.2MHz,'
-    '*:1082.8~1083.2MHz,'
-    '*:1083.8~1084.2MHz,'
-    '*:1084.8~1085MHz,'
-    '*:1085.8~1086.2MHz,'
-    '*:1087.96~1088.04MHz,'
-    '*:1088.6~1091.6MHz,'
-    '*:1091.96~1092.04MHz,'
-    '*:1093.8~1094.2MHz,'
-    '*:1094.8~1095.2MHz,'
-    '*:1096.8~1097.2MHz,'
-    '*:1097.8~1098.2MHz,'
-    '*:1101.9~1102.1 MHz,'
-    '*:1102.8~1103.2MHz,'
-    '*:1103.8~1104.2MHz,'
-    '*:1104.7~1105.2MHz,'
-    '*:1105.8~1106.2MHz,'
-    '*:1106.8~1107.2MHz,'
-    '*:1108.8~1109.2MHz,'
-    '*:1109.8~1110.2MHz,'
-    '*:1110.8~1111.2MHz,'
-    '*:1111.8~1112.2MHz,'
-    '*:1115.8~1116.2MHz,'
-    '*:1116.8~1117.2MHz,'
-    '*:1117.8~1118.2MHz,'
-    '*:1118.8~1119.2MHz,'
-    '*:1119.8~1120.2MHz,'
-    '*:1120.8~1121.2MHz,'
-    '*:1121.8~1122.2MHz,'
-    '*:1122.8~1123.2MHz,'
-    '*:1123.8~1124.2MHz,'
-    '*:1124.8~1125.2MHz,'
-    '*:1125.8~1126.2MHz,'
-    '*:1126.8~1127.2MHz,'
-    '*:1129.8~1130.2MHz,'
-    '*:1130.8~1131.2MHz,'
-    '*:1131.8~1132.2MHz,'
-    '*:1133.8~1134.2MHz,'
-    '*:1134.8~1135.2MHz,'
-    '*:1136.8~1137.2MHz,'
-    '*:1137.8~1138.2MHz,'
-    '*:1138.8~1139.2MHz,'
-    '*:1139.8~1140.2MHz,'
-    '*:1143.8~1144.2MHz,'
-    '*:1146.8~1147.2MHz,'
-    '*:1148.8~1149.2MHz,'
-    '*:1149.8~1150.2MHz,'
-    '*:1153.04~1153.08MHz,'
-    '*:1160.9~1161.1MHz,'
-    '*:1165.9~1166.3MHz,'
-    '*:1167~1186MHz,'
-    '*:1186.65~1186.75MHz,'
-    '*:1201.8~1202.2MHz,'
-    '*:1224~1230MHz,'
-    '*:1242~1250MHz,'
-    '*:1253.6~1255.2MHz,'
-    '*:1289~1291MHz,'
-    '*:1293.3~1295.7MHz,'
-    '*:1320~1322MHz,'
-    '*:1326.5~1328.5MHz,'
-    '*:1331~1334MHz,'
-    '*:1336.5~1338MHz,'
-    '*:1379~1383MHz')
-    
+############################### Start Mask Flagging and Manual Flags ################################
+    logprint ("Determine which masking file to use", logfileout='logs/initial.log')
+# Identify Mask file for each Epoch based on start date
+    if startdate < 56679:    # Epoch 1
+        mask_file=pipepath+'epoch1_mask.txt'
+        reason_string='Epoch 1 RFI Mask'
+    elif startdate < 57147:  # Epoch 2
+        mask_file=pipepath+'epoch2_mask.txt'
+        reason_string='Epoch 2 RFI Mask'
+    elif startdate < 57659:  # Epoch 3
+        mask_file=pipepath+'epoch3_mask.txt'
+        reason_string='Epoch 3 RFI Mask'
+    elif startdate < 58148:   # Epoch 4
+        mask_file=pipepath+'epoch4_mask.txt'
+        reason_string='Epoch 4 RFI Mask'
+    else:                    # Epoch 5
+        mask_file=pipepath+'epoch5_mask.txt'
+        reason_string='Epoch 5 RFI Mask'
+    logprint ("Using "+reason_string, logfileout='logs/initial.log')
+        
+# Apply masks 
     default('flagdata')
     vis=ms_active
-    field='J0943-0819,1331+305=3C286'
-    spw=flag_spw
-    mode='manual'
+    mode='list'
+    inpfile=mask_file
     action='apply'
-    cmdreason='RFI Mask'
+    cmdreason=reason_string
+    overwrite=False
     flagbackup=False
+    savepars=True
     flagdata()
+    
+    logprint ("Mask applied to calibrators", logfileout='logs/initial.log')
 
-######################################################################
+# Apply manual flag files (manual_flags_bandpass.txt, manual_flags_phasecal.txt, manual_flags_ms.txt)
+    current_directory = os.getcwd()
+
+    bp_flag_file=current_directory+'/manual_flags_bandpass.txt'
+    ph_flag_file=current_directory+'/manual_flags_phasecal.txt'
+    ms_flag_file=current_directory+'/manual_flags_ms.txt'
+    
+# Check to see if manual flag files exist.
+    if os.path.exists(bp_flag_file):
+            logprint ("Applying manual flags to flux calibrator", logfileout='logs/initial.log')
+# Now flag the bad data.
+            default('flagdata')
+            vis=ms_active
+            mode='list'
+            inpfile=bp_flag_file
+            action='apply'
+            cmdreason='Additional Flux Cal Flags'
+            flagbackup=False
+            overwrite=False
+            savepars=True
+            flagdata()
+
+    if os.path.exists(ph_flag_file):
+            logprint ("Applying manual flags to phase calibrator", logfileout='logs/initial.log')
+# Now flag the bad data.
+            default('flagdata')
+            vis=ms_active
+            mode='list'
+            inpfile=ph_flag_file
+            action='apply'
+            cmdreason='Additional Phase Cal Flags'
+            flagbackup=False
+            overwrite=False
+            savepars=True
+            flagdata()
+
+    if os.path.exists(ms_flag_file):
+            logprint ("Applying manual flags to deepfield", logfileout='logs/initial.log')
+# Now flag the bad data.
+            default('flagdata')
+            vis=ms_active
+            mode='list'
+            inpfile=ms_flag_file
+            action='apply'
+            cmdreason='Additional Deepfield Flags'
+            flagbackup=False
+            overwrite=False
+            savepars=True
+            flagdata()
+
+    logprint ("Masks applied and manual flagging completed", logfileout='logs/initial.log')
+
+        
+################################ END NEW FLAGS #################################
+
+################### OUTPUT Section ##################################
 
 # Check if nrao_weblog_path is set properly.  If not 
     if os.path.exists(nrao_weblog_path):
