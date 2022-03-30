@@ -2286,7 +2286,7 @@ def model_cg(x):
     """Get the flux of the complex gain calibrator at a certain frequency."""
     return 10**((np.log10(x/1e3)*-0.59368523)+0.51273494)
 
-def ff(visib):
+def th_exp_rat(visib):
     # Some starting functions.
     ms.open(visib) # Open measurement set.
     spwinfo = ms.getspectralwindowinfo() # Get a dictionary with SpW info.
